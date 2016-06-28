@@ -1,0 +1,204 @@
+#!/bin/sh
+filter_orion="ArubaInstant_Orion_6.4.4.6-4.2.4.0_"
+filter_cassiopeia="ArubaInstant_Cassiopeia_6.4.4.6-4.2.4.0_"
+filter_pegasus="ArubaInstant_Pegasus_6.4.4.6-4.2.4.0_"
+filter_aries="ArubaInstant_Aries_6.4.4.6-4.2.4.0_"
+instant_image_path="/var/tf/instant_image/"
+build_id=99999
+findlatestbuild () {
+        cd /var/tmp/
+        curl -d "codeline=$1&submit=search" http://speedy.arubanetworks.com/cgi-bin/re/build_info_mysql.html -o "latestbuild.html"
+        if [ -f "latestbuild.html" ]; then
+                build_id=`cat latestbuild.html | awk 'BEGIN {x=0} {if($0~/<font face=arial>BRANCH <\/font>/)x=1;if(x==1) print $0}' |grep "find_images.html?build=" | sed 's/.*find_images.html?build=\([0-9]*\).*/\1/g' | awk 'BEGIN {x=0}/^[0-9]*$/{if(x<$1){x=$1}}END {print x}'`
+                curl http://speedy.arubanetworks.com/cgi-bin/re/find_images.html?build=$build_id -o "build_$build_id"
+                build_status=`cat build_$build_id | grep "Status" | sed 's/.*\(FAILED\)<\/td><\/tr>/\1/'`
+                if [ "$build_status" = "FAILED" ]; then
+                        cd $instant_image_path
+                        build_id=`ls |awk '{print $1}' | egrep "$filter" | sed "s/$filter//g" | awk 'BEGIN {x=0}/^[0-9]*$/{if(x<$1){x=$1}}END {print x}'`
+                fi
+                rm -f latestbuild.html
+                rm -f build_$build_id
+        else
+                echo "the file : latestbuild.html does not exist"
+                cd $instant_image_path
+                build_id=`ls |awk '{print $1}' | egrep "$filter" | sed "s/$filter//g" | awk 'BEGIN {x=0}/^[0-9]*$/{if(x<$1){x=$1}}END {print x}'`
+        fi
+        #latest_orion_build=${filter_orion}${build_id}
+        #latest_cassiopeia_build=${filter_cassiopeia}${build_id}
+        #latest_pegasus_build=${filter_pegasus}${build_id}
+        #latest_aries_build=${filter_aries}${build_id}
+        #cd $instant_image_path
+        #if [ -f $latest_orion_build ]
+        #then :
+        #else
+        #        wget -c -t 300 ftp://10.1.1.41/$latest_orion_build
+        #        if [ $? -ne 0 ]; then
+        #                echo "Download image $latest_orion_build failed"
+        #                exit $?
+        #        fi
+        #fi
+        #if [ -f $latest_cassiopeia_build ]
+        #then :
+        #else
+        #        wget -c -t 300 ftp://10.1.1.41/$latest_cassiopeia_build
+        #        if [ $? -ne 0 ]; then
+        #                echo "Download image $latest_cassiopeia_build failed"
+        #                exit $?
+        #        fi
+        #fi
+        #if [ -f $latest_pegasus_build ]
+        #then :
+        #else
+        #        wget -c -t 300 ftp://10.1.1.41/$latest_pegasus_build
+        #        if [ $? -ne 0 ]; then
+        #                echo "Download image $latest_pegasus_build failed"
+        #                exit $?
+        #        fi
+        #fi
+	#if [ -f $latest_aries_build ]
+        #then :
+        #else
+        #        wget -c -t 300 ftp://10.1.1.41/$latest_aries_build
+        #        if [ $? -ne 0 ]; then
+        #                echo "Download image $latest_aries_build failed"
+        #                exit $?
+        #        fi
+        #fi
+}
+if [ $# -ne 2 ] ; then
+	echo "Usage: $0 <version> <IAP4.0|IAP4.1>"
+	exit 1
+fi
+findlatestbuild $2
+day_file=`date +%Y%m%d%H%M%S`
+log_path="/scripts/pata_log/${day_file}"
+version="$1_${build_id}"
+echo $version
+ performance225="insert into queue \
+        set priority = '0',\
+        userName = 'instantauto',\
+        status = '2',\
+        description = 'Automatically queue\'d from Nightly Build Server',\
+        dbResults   = 'Y',\
+        tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+        creationDate  = NOW(),\
+        lastChangeDate = NOW(),\
+        build   = 'OB:$version',\
+        command = 'GA:1',\
+        testbed = 'TB:iap_performance',\
+        suite = 'DD:P225'"
+echo "$performance225" | mysql -h 10.65.10.26 -uroot -p123456 autoSmoke
+# performance224="insert into queue \
+#        set priority = '0',\
+#       userName = 'performance',\
+#        status = '2',\
+#        description = 'Automatically queue\'d from Nightly Build Server',\
+#        dbResults   = 'Y',\
+#        tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+#        creationDate  = NOW(),\
+#        lastChangeDate = NOW(),\
+#        build   = 'OB:$version',\
+#        command = 'GA:1',\
+#        testbed = 'TB:iap_performance',\
+#        suite = 'DD:P224'"
+#echo "$performance224" | mysql -h 10.65.10.26 -uroot -p123456 autoSmoke
+ # performance205="insert into queue \
+        # set priority = '0',\
+        # userName = 'nightly',\
+        # status = '2',\
+        # description = 'Automatically queue\'d from Nightly Build Server',\
+        # dbResults   = 'Y',\
+        # tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+        # creationDate  = NOW(),\
+        # lastChangeDate = NOW(),\
+        # build   = 'OB:$version',\
+        # command = 'GA:1',\
+        # testbed = 'TB:iap_performance',\
+        # suite = 'DD:P205'"
+# echo "$performance205" | mysql -h 10.65.102.22 -uroot -p123456 autoSmoke
+# performance114="insert into queue \
+        # set priority = '0',\
+        # userName = 'nightly',\
+        # status = '2',\
+        # description = 'Automatically queue\'d from Nightly Build Server',\
+        # dbResults   = 'Y',\
+        # tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+        # creationDate  = NOW(),\
+        # lastChangeDate = NOW(),\
+        # build   = 'OB:$version',\
+        # command = 'GA:1',\
+        # testbed = 'TB:iap_performance',\
+        # suite = 'DD:P114'"
+# echo "$performance114" | mysql -h 10.65.102.22 -uroot -p123456 autoSmoke
+# performance155="insert into queue \
+        # set priority = '0',\
+        # userName = 'nightly',\
+        # status = '2',\
+        # description = 'Automatically queue\'d from Nightly Build Server',\
+        # dbResults   = 'Y',\
+        # tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+        # creationDate  = NOW(),\
+        # lastChangeDate = NOW(),\
+        # build   = 'OB:$version',\
+        # command = 'GA:1',\
+        # testbed = 'TB:iap_performance',\
+        # suite = 'DD:P155'"
+# echo "$performance155" | mysql -h 10.65.102.22 -uroot -p123456 autoSmoke
+# performance105="insert into queue \
+        # set priority = '0',\
+        # userName = 'nightly',\
+        # status = '2',\
+        # description = 'Automatically queue\'d from Nightly Build Server',\
+        # dbResults   = 'Y',\
+        # tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+        # creationDate  = NOW(),\
+        # lastChangeDate = NOW(),\
+        # build   = 'OB:$version',\
+        # command = 'GA:1',\
+        # testbed = 'TB:iap_performance',\
+        # suite = 'DD:P105'"
+# echo "$performance105" | mysql -h 10.65.102.22 -uroot -p123456 autoSmoke
+ performance325="insert into queue \
+         set priority = '0',\
+         userName = 'instantauto',\
+         status = '2',\
+         description = 'Automatically queue\'d from Nightly Build Server',\
+         dbResults   = 'Y',\
+         tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+         creationDate  = NOW(),\
+         lastChangeDate = NOW(),\
+         build   = 'OB:$version',\
+         command = 'GA:1',\
+         testbed = 'TB:iap_performance',\
+         suite = 'DD:P325'"
+ echo "$performance325" | mysql -h 10.65.10.26 -uroot -p123456 autoSmoke
+ 
+  performance335="insert into queue \
+         set priority = '0',\
+         userName = 'instantauto',\
+         status = '2',\
+         description = 'Automatically queue\'d from Nightly Build Server',\
+         dbResults   = 'Y',\
+         tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+         creationDate  = NOW(),\
+         lastChangeDate = NOW(),\
+         build   = 'OB:$version',\
+         command = 'GA:1',\
+         testbed = 'TB:iap_performance',\
+         suite = 'DD:P335'"
+ echo "$performance335" | mysql -h 10.65.10.26 -uroot -p123456 autoSmoke
+ 
+  performance315="insert into queue \
+         set priority = '0',\
+         userName = 'instantauto',\
+         status = '2',\
+         description = 'Automatically queue\'d from Nightly Build Server',\
+         dbResults   = 'Y',\
+         tftpIP   =  'IP:10.1.1.41,ftp,anonymous,anonymous,',\
+         creationDate  = NOW(),\
+         lastChangeDate = NOW(),\
+         build   = 'OB:$version',\
+         command = 'GA:1',\
+         testbed = 'TB:iap_performance',\
+         suite = 'DD:P315'"
+ echo "$performance315" | mysql -h 10.65.10.26 -uroot -p123456 autoSmoke

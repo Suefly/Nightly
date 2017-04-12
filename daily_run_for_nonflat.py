@@ -7,6 +7,7 @@ import MySQLdb, datetime, sys
 import time
 
 url = "http://speedy.arubanetworks.com/cgi-bin/re/build_info_mysql.html"
+url = "http://speedy.arubanetworks.com/cgi-bin/re/build_info_mysql.html"
 version = sys.argv[1]
 print version
 branch = sys.argv[2]
